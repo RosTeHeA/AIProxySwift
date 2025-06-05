@@ -1111,13 +1111,13 @@ getting a basic integration working first narrows down the source of any problem
 
 Take these steps to build and run an OpenAI realtime example: 
 
-1. Generate a new SwiftUI Xcode project called `MyApp`
+1. Generate a new SwiftUI Xcode project
 2. Add the `NSMicrophoneUsageDescription` key to your info.plist file
 3. If macOS, tap your project > your target > Signing & Capabilities and add the following:
     - App Sandbox > Outgoing Connections (client)
     - App Sandbox > Audio Input
     - Hardened Runtime > AudioInput
-4. Replace the contents of `MyApp.swift` with the snippet below
+4. Replace the contents of `ContentView.swift` with the snippet below
 5. Replace the placeholders in the snippet
     - If connecting directly to OpenAI, replace `your-openai-key`
     - If protecting your connection through AIProxy, replace `aiproxy-partial-key` and `aiproxy-service-url`
@@ -1132,27 +1132,48 @@ added to the private beta.
 import SwiftUI
 import AIProxy
 
-@main
-struct MyApp: App {
-
+struct ContentView: View {
     let realtimeManager = RealtimeManager()
+    @State private var isRealtimeActive: Bool = false {
+        willSet {
+            if newValue {
+                startRealtime()
+            } else {
+                stopRealtime()
+            }
+        }
+    }
 
-    var body: some Scene {
-        WindowGroup {
-            Button("Start conversation") {
-                Task {
-                    try await realtimeManager.startConversation()
-                }
+    private func startRealtime() {
+        Task {
+            do {
+                try await realtimeManager.startConversation()
+            } catch {
+                print("Could not start OpenAI realtime: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    private func stopRealtime() {
+        Task {
+            await realtimeManager.stopConversation()
+        }
+    }
+
+    var body: some View {
+        VStack {
+            Button(isRealtimeActive ? "Stop OpenAI Realtime" : "Start OpenAI Realtime") {
+                self.isRealtimeActive.toggle()
             }
         }
     }
 }
 
+
 @RealtimeActor
 final class RealtimeManager {
     private var realtimeSession: OpenAIRealtimeSession?
-    private var microphonePCMSampleVendor: MicrophonePCMSampleVendor?
-    private var audioPCMPlayer: AudioPCMPlayer?
+    private var audioController: AudioController?
 
     nonisolated init() {}
 
@@ -1171,12 +1192,8 @@ final class RealtimeManager {
         // Set to false if you want your user to speak first
         let aiSpeaksFirst = true
 
-        // Initialize an audio player to play PCM16 data that we receive from OpenAI:
-        let audioPCMPlayer = try AudioPCMPlayer()
-
-        // Initialize a microphone vendor to vend PCM16 audio samples that we'll send to OpenAI:
-        let microphonePCMSampleVendor = MicrophonePCMSampleVendor()
-        let audioStream = try microphonePCMSampleVendor.start()
+        let audioController = try await AudioController(modes: [.playback, .record])
+        let micStream = try audioController.micStream()
 
         // Start the realtime session:
         let configuration = OpenAIRealtimeSessionConfiguration(
@@ -1188,11 +1205,7 @@ final class RealtimeManager {
             outputAudioFormat: .pcm16,
             temperature: 0.7,
             turnDetection: .init(
-                type: .serverVAD(
-                    prefixPaddingMs: 300,
-                    silenceDurationMs: 500,
-                    threshold: 0.5
-                )
+                type: .semanticVAD(eagerness: .medium)
             ),
             voice: "shimmer"
         )
@@ -1206,7 +1219,7 @@ final class RealtimeManager {
         // Send audio from the microphone to OpenAI once OpenAI is ready for it:
         var isOpenAIReadyForAudio = false
         Task {
-            for await buffer in audioStream {
+            for await buffer in micStream {
                 if isOpenAIReadyForAudio, let base64Audio = AIProxy.base64EncodeAudioPCMBuffer(from: buffer) {
                     await realtimeSession.sendMessage(
                         OpenAIRealtimeInputAudioBufferAppend(audio: base64Audio)
@@ -1227,10 +1240,10 @@ final class RealtimeManager {
                     } else {
                         isOpenAIReadyForAudio = true
                     }
-                case .responseAudioDelta(let base64Audio):
-                    audioPCMPlayer.playPCM16Audio(from: base64Audio)
+                case .responseAudioDelta(let base64String):
+                    audioController.playPCM16Audio(base64String: base64String)
                 case .inputAudioBufferSpeechStarted:
-                    audioPCMPlayer.interruptPlayback()
+                    audioController.interruptPlayback()
                 case .responseCreated:
                     isOpenAIReadyForAudio = true
                 default:
@@ -1239,17 +1252,14 @@ final class RealtimeManager {
             }
         }
 
-        self.microphonePCMSampleVendor = microphonePCMSampleVendor
-        self.audioPCMPlayer = audioPCMPlayer
         self.realtimeSession = realtimeSession
+        self.audioController = audioController
     }
 
     func stopConversation() {
-        self.microphonePCMSampleVendor?.stop()
-        self.audioPCMPlayer?.interruptPlayback()
+        self.audioController?.stop()
         self.realtimeSession?.disconnect()
-        self.microphonePCMSampleVendor = nil
-        self.audioPCMPlayer = nil
+        self.audioController = nil
         self.realtimeSession = nil
     }
 }
@@ -2412,6 +2422,175 @@ Use the file URL returned from the snippet above.
         print("Received \(statusCode) status code with response body: \(responseBody)")
     } catch {
         print("Could not create Gemini image edit request: \(error.localizedDescription)")
+    }
+```
+
+### How to use single-speaker TTS with Gemini
+
+```swift
+    import AIProxy
+
+    /* Uncomment for BYOK use cases */
+    // let geminiService = AIProxy.geminiDirectService(
+    //     unprotectedAPIKey: "your-gemini-key"
+    // )
+
+    /* Uncomment for all other production use cases */
+    // let geminiService = AIProxy.geminiService(
+    //     partialKey: "partial-key-from-your-developer-dashboard",
+    //     serviceURL: "service-url-from-your-developer-dashboard"
+    // )
+
+    let requestBody = GeminiGenerateContentRequestBody(
+        contents: [
+            .init(
+                parts: [
+                    .text("Hello world")
+                ],
+                role: "user"
+            )
+        ],
+        generationConfig: .init(
+            responseModalities: [
+                "AUDIO",
+            ],
+            speechConfig: .init(
+                voiceConfig: .init(
+                    prebuiltVoiceConfig: .init(
+                        voiceName: .kore
+                    )
+                )
+            )
+        ),
+        safetySettings: [
+            .init(category: .dangerousContent, threshold: .none),
+            .init(category: .civicIntegrity, threshold: .none),
+            .init(category: .harassment, threshold: .none),
+            .init(category: .hateSpeech, threshold: .none),
+            .init(category: .sexuallyExplicit, threshold: .none)
+        ]
+    )
+
+    do {
+        let response = try await geminiService.generateContentRequest(
+            body: requestBody,
+            model: "gemini-2.5-flash-preview-tts",
+            secondsToWait: 300
+        )
+        for part in response.candidates?.first?.content?.parts ?? [] {
+            if case .inlineData(mimeType: let mimeType, base64Data: let base64Data) = part {
+                print("Gemini generated inline data with mimetype: \(mimeType) and base64Length: \(base64Data.count)")
+
+                // Do not use a local `let` or `var` for AudioController.
+                // You need the lifecycle of the player to live beyond the scope of this function.
+                // Instead, use file scope or set the player as a member of a reference type with long life.
+                // For example, at the top of this file you may define:
+                //
+                //   fileprivate var audioController: AudioController? = nil
+                //
+                // And then use the code below to play the TTS result:
+                audioController = try await AudioController(modes: [.playback])
+                await audioController?.playPCM16Audio(base64String: base64Data)
+            }
+        }
+    } catch AIProxyError.unsuccessfulRequest(let statusCode, let responseBody) {
+        print("Received \(statusCode) status code with response body: \(responseBody)")
+    } catch {
+        print("Could not create speech using Gemini: \(error.localizedDescription)")
+    }
+```
+
+### How to use multi-speaker TTS with Gemini
+
+```swift
+    import AIProxy
+
+    /* Uncomment for BYOK use cases */
+    // let geminiService = AIProxy.geminiDirectService(
+    //     unprotectedAPIKey: "your-gemini-key"
+    // )
+
+    /* Uncomment for all other production use cases */
+    // let geminiService = AIProxy.geminiService(
+    //     partialKey: "partial-key-from-your-developer-dashboard",
+    //     serviceURL: "service-url-from-your-developer-dashboard"
+    // )
+
+    let requestBody = GeminiGenerateContentRequestBody(
+        contents: [
+            .init(
+                parts: [
+                    .text("""
+                          Joe: How's it going today, Jane?
+                          Jane: Not too bad, how about you?
+                          """
+                    )
+                ],
+                role: "user"
+            )
+        ],
+        generationConfig: .init(
+            responseModalities: [
+                "AUDIO",
+            ],
+            speechConfig: .init(
+                multiSpeakerVoiceConfig: .init(
+                    speakerVoiceConfigs: [
+                        .init(
+                            speaker: "Joe",
+                            voiceConfig: .init(
+                                prebuiltVoiceConfig: .init(
+                                    voiceName: .puck
+                                )
+                            )
+                        ),
+                        .init(
+                            speaker: "Jane",
+                            voiceConfig: .init(
+                                prebuiltVoiceConfig: .init(
+                                    voiceName: .kore
+                                )
+                            )
+                        )
+                    ]
+                )
+            )
+        ),
+        safetySettings: [
+            .init(category: .dangerousContent, threshold: .none),
+            .init(category: .civicIntegrity, threshold: .none),
+            .init(category: .harassment, threshold: .none),
+            .init(category: .hateSpeech, threshold: .none),
+            .init(category: .sexuallyExplicit, threshold: .none)
+        ]
+    )
+
+    do {
+        let response = try await geminiService.generateContentRequest(
+            body: requestBody,
+            model: "gemini-2.5-flash-preview-tts",
+            secondsToWait: 300
+        )
+        for part in response.candidates?.first?.content?.parts ?? [] {
+            if case .inlineData(mimeType: let mimeType, base64Data: let base64Data) = part {
+                print("Gemini generated inline data with mimetype: \(mimeType) and base64Length: \(base64Data.count)")
+
+                // Do not use a local `let` or `var` for AudioController.
+                // You need the lifecycle of the player to live beyond the scope of this function.
+                // Instead, use file scope or set the player as a member of a reference type with long life.
+                // For example, at the top of this file you may define:
+                //
+                //   fileprivate var audioController: AudioController? = nil
+                //
+                // And then use the code below to play the TTS result:
+                audioController = try await AudioController(modes: [.playback])
+                await audioController?.playPCM16Audio(base64String: base64Data)
+            }
+        }
+    } catch AIProxyError.unsuccessfulRequest(let statusCode, let responseBody) {
+        print("Received \(statusCode) status code with response body: \(responseBody)")
+    } catch {
+        print("Could not create multi-speaker speech using Gemini: \(error.localizedDescription)")
     }
 ```
 
@@ -3747,6 +3926,92 @@ model owner and model name in the string.
         print("Received \(statusCode) status code with response body: \(responseBody)")
     } catch {
         print("Could not create replicate prediction: \(error.localizedDescription)")
+    }
+```
+
+### How to edit images with Flux Kontext Max on Replicate
+
+```
+    import AIProxy
+
+    /* Uncomment for BYOK use cases */
+    // let replicateService = AIProxy.replicateDirectService(
+    //     unprotectedAPIKey: "your-replicate-key"
+    // )
+
+    /* Uncomment for all other production use cases */
+    // let replicateService = AIProxy.replicateService(
+    //     partialKey: "partial-key-from-your-developer-dashboard",
+    //     serviceURL: "service-url-from-your-developer-dashboard"
+    // )
+
+    guard let image = NSImage(named: "my_image") else {
+        print("Could not find an image named 'my_image' in your app assets")
+        return
+    }
+
+    guard let imageURL = AIProxy.encodeImageAsURL(image: image, compressionQuality: 0.5) else {
+        print("Could not encode image as a data URI")
+        return
+    }
+
+    do {
+        let input = ReplicateFluxKontextInputSchema(
+            inputImage: imageURL,
+            prompt: "Make the letters 3D, floating in space above Monument Valley, Utah"
+        )
+        let url = try await replicateService.createFluxKontextMaxImage(
+            input: input,
+            secondsToWait: 120
+        )
+        print("Done creating Flux Kontext Max image: ", url)
+    } catch AIProxyError.unsuccessfulRequest(let statusCode, let responseBody) {
+        print("Received non-200 status code: \(statusCode) with response body: \(responseBody)")
+    } catch {
+        print("Could not create Flux Kontext Max image: \(error.localizedDescription)")
+    }
+```
+
+### How to edit images with Flux Kontext Pro on Replicate
+
+```
+    import AIProxy
+
+    /* Uncomment for BYOK use cases */
+    // let replicateService = AIProxy.replicateDirectService(
+    //     unprotectedAPIKey: "your-replicate-key"
+    // )
+
+    /* Uncomment for all other production use cases */
+    // let replicateService = AIProxy.replicateService(
+    //     partialKey: "partial-key-from-your-developer-dashboard",
+    //     serviceURL: "service-url-from-your-developer-dashboard"
+    // )
+
+    guard let image = NSImage(named: "my_image") else {
+        print("Could not find an image named 'my_image' in your app assets")
+        return
+    }
+
+    guard let imageURL = AIProxy.encodeImageAsURL(image: image, compressionQuality: 0.5) else {
+        print("Could not encode image as a data URI")
+        return
+    }
+
+    do {
+        let input = ReplicateFluxKontextInputSchema(
+            inputImage: imageURL,
+            prompt: "Make the letters 3D, floating in space above Monument Valley, Utah"
+        )
+        let url = try await replicateService.createFluxKontextProImage(
+            input: input,
+            secondsToWait: 120
+        )
+        print("Done creating Flux Kontext Pro image: ", url)
+    } catch AIProxyError.unsuccessfulRequest(let statusCode, let responseBody) {
+        print("Received non-200 status code: \(statusCode) with response body: \(responseBody)")
+    } catch {
+        print("Could not create Flux Kontext Pro image: \(error.localizedDescription)")
     }
 ```
 
