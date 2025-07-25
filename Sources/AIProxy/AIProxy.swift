@@ -8,7 +8,7 @@ import UIKit
 public enum AIProxy {
 
     /// The current sdk version
-    public static let sdkVersion = "0.105.0"
+    public static let sdkVersion = "0.121.0"
 
     /// Configures the AIProxy SDK. Call this during app launch by adding an `init` to your SwiftUI MyApp.swift file, e.g.
     ///
@@ -225,13 +225,18 @@ public enum AIProxy {
     ///
     /// - Parameters:
     ///   - unprotectedAPIKey: Your OpenAI API key
+    ///   - baseURL: Optional base URL for the API requests
+    ///   - requestFormat: If you are sending requests to your own Azure deployment, set this to `.azureDeployment`.
+    ///                   Otherwise, you may leave this set to its default value of `.standard`
     /// - Returns: An instance of OpenAIService configured and ready to make requests
     public static func openAIDirectService(
         unprotectedAPIKey: String,
-        baseURL: String? = nil
+        baseURL: String? = nil,
+        requestFormat: OpenAIRequestFormat = .standard
     ) -> OpenAIService {
         return OpenAIDirectService(
             unprotectedAPIKey: unprotectedAPIKey,
+            requestFormat: requestFormat,
             baseURL: baseURL
         )
     }
@@ -1014,7 +1019,7 @@ public enum AIProxy {
         do {
             return try await AnonymousAccountStorage.sync()
         } catch {
-            logIf(.critical)?.critical("Could not configure an AIProxy anonymous account: \(error.localizedDescription)")
+            logIf(.error)?.error("AIProxy: Could not configure an anonymous account: \(error.localizedDescription)")
         }
         return nil
     }

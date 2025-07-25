@@ -172,6 +172,9 @@ enum AIProxyUtils {
     }
 
     static func getAppTransactionID() async -> String? {
+        #if compiler(<6.1.2)
+        return nil
+        #else
         guard #available(iOS 16.0, watchOS 9.0, macOS 13.0, tvOS 16.0, visionOS 1.0, *) else {
             return nil
         }
@@ -193,12 +196,13 @@ enum AIProxyUtils {
         }
 
         let transactionID = verifiedAppTransaction.appTransactionID
-        guard transactionID != "0" else {
-            logIf(.info)?.info("AIProxy: Storekit's appTransactionID is zero, ignoring it")
+        guard transactionID != "0" && transactionID != "" else {
+            logIf(.info)?.info("AIProxy: Storekit's appTransactionID is zero or empty, ignoring it")
             return nil
         }
 
         return transactionID
+        #endif
     }
 }
 
