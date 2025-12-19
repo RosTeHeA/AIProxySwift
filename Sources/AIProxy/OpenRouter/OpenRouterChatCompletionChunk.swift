@@ -21,11 +21,23 @@ nonisolated public struct OpenRouterChatCompletionChunk: Decodable, Sendable {
     /// usage statistics for the entire request.
     public let usage: OpenRouterChatCompletionResponseBody.Usage?
     
-    public init(choices: [Choice], model: String?, provider: String?, usage: OpenRouterChatCompletionResponseBody.Usage?) {
+    /// Gemini thought signature - may be at chunk level
+    public let thoughtSignature: String?
+    
+    private enum CodingKeys: String, CodingKey {
+        case choices
+        case model
+        case provider
+        case usage
+        case thoughtSignature = "thought_signature"
+    }
+    
+    public init(choices: [Choice], model: String?, provider: String?, usage: OpenRouterChatCompletionResponseBody.Usage?, thoughtSignature: String? = nil) {
         self.choices = choices
         self.model = model
         self.provider = provider
         self.usage = usage
+        self.thoughtSignature = thoughtSignature
     }
 }
 
@@ -34,15 +46,19 @@ extension OpenRouterChatCompletionChunk {
     nonisolated public struct Choice: Decodable, Sendable {
         public let delta: Delta
         public let finishReason: String?
+        /// Gemini thought signature - may be at choice level
+        public let thoughtSignature: String?
 
-        public init(delta: Delta, finishReason: String?) {
+        public init(delta: Delta, finishReason: String?, thoughtSignature: String? = nil) {
             self.delta = delta
             self.finishReason = finishReason
+            self.thoughtSignature = thoughtSignature
         }
 
         private enum CodingKeys: String, CodingKey {
             case delta
             case finishReason = "finish_reason"
+            case thoughtSignature = "thought_signature"
         }
     }
 }
