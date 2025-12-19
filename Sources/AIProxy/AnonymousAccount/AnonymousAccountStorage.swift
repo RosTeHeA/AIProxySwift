@@ -14,23 +14,16 @@ import Foundation
 /// - At app launch, call `Task.defer { AIProxy.configure }`, which internally will call `sync`.
 /// - Any requests through AIProxy will automatically include the UUID of `resolvedAccount` in the request headers.
 ///
-final class AnonymousAccountStorage {
+@AIProxyActor final class AnonymousAccountStorage: Sendable {
     /// A best-effort anonymous ID that is stable across multiple devices of an iCloud account
-    static var resolvedAccount: AnonymousAccount? {
-        get {
-            protectedPropertyQueue.sync { _resolvedAccount }
-        }
-        set {
-            protectedPropertyQueue.async(flags: .barrier) { _resolvedAccount = newValue }
-        }
-    }
-    private static var _resolvedAccount: AnonymousAccount?
+    static var resolvedAccount: AnonymousAccount?
 
     /// The account chain that lead to the current resolution.
     private static var localAccountChain: [AnonymousAccount] = []
 
     /// This is expected to be called as part of the application launch.
     static func sync() async throws -> String {
+
         #if false
         try await AIProxyStorage.clear()
         #endif

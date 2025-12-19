@@ -5,11 +5,11 @@
 //  Created by Lou Zell on 5/30/25.
 //
 
-import AVFoundation
+@preconcurrency import AVFoundation
 
 // This protocol is used as a mixin.
 // Please see MicrophonePCMSampleVendor.swift for the protocol that defines a user interface.
-internal final class MicrophonePCMSampleVendorCommon {
+nonisolated internal final class MicrophonePCMSampleVendorCommon {
     var bufferAccumulator: AVAudioPCMBuffer?
     var audioConverter: AVAudioConverter?
 
@@ -59,7 +59,7 @@ internal final class MicrophonePCMSampleVendorCommon {
         // The block will keep getting invoked until either the frame capacity is
         // reached or outStatus.pointee is set to `.noDataNow` or `.endStream`.
         var error: NSError?
-        var ptr: UInt32 = 0
+        nonisolated(unsafe) var ptr: UInt32 = 0
         let targetFrameLength = pcm16Buffer.frameLength
         let _ = converter.convert(to: outputBuffer, error: &error) { numberOfFrames, outStatus in
             guard ptr < targetFrameLength,
@@ -110,9 +110,7 @@ internal final class MicrophonePCMSampleVendorCommon {
     }
 }
 
-
-
-private func advancedPCMBuffer_noCopy(_ originalBuffer: AVAudioPCMBuffer, offset: UInt32) -> AVAudioPCMBuffer? {
+nonisolated private func advancedPCMBuffer_noCopy(_ originalBuffer: AVAudioPCMBuffer, offset: UInt32) -> AVAudioPCMBuffer? {
     let audioBufferList = originalBuffer.mutableAudioBufferList
     guard audioBufferList.pointee.mNumberBuffers == 1,
           audioBufferList.pointee.mBuffers.mNumberChannels == 1
@@ -135,7 +133,8 @@ private func advancedPCMBuffer_noCopy(_ originalBuffer: AVAudioPCMBuffer, offset
 }
 
 // For debugging purposes only.
-private func writePCM16IntValuesToFile(from buffer: AVAudioPCMBuffer, location: String) {
+// Don't forget to enable Signing & Capabilities > File Access > Downloads Folder > Read and Write
+nonisolated public func writePCM16IntValuesToFile(from buffer: AVAudioPCMBuffer, location: String) {
     guard let audioBufferList = buffer.audioBufferList.pointee.mBuffers.mData else {
         print("No audio data available to write to disk")
         return
@@ -150,7 +149,40 @@ private func writePCM16IntValuesToFile(from buffer: AVAudioPCMBuffer, location: 
     let fileURL = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Downloads/\(location)")
     let content = samples.map { String($0) }.joined(separator: "\n") + "\n"
     if !FileManager.default.fileExists(atPath: fileURL.path) {
-        try? content.write(to: fileURL, atomically: true, encoding: .utf8)
+        try! content.write(to: fileURL, atomically: true, encoding: .utf8)
+    } else {
+        let fileHandle = try! FileHandle(forWritingTo: fileURL)
+        defer { fileHandle.closeFile() }
+        fileHandle.seekToEndOfFile()
+        if let data = content.data(using: .utf8) {
+            fileHandle.write(data)
+        }
+    }
+}
+
+nonisolated public func writeRawAudioToFile(_ data: Data, location: String) {
+    let fileURL = URL(fileURLWithPath: NSHomeDirectory())
+        .appendingPathComponent("Downloads/\(location)")
+
+    var samples: [Int16] = []
+
+    let count = data.count - (data.count % 2)
+
+    var i = 0
+    while i + 1 < count {
+        let s = Int16(bitPattern:
+            UInt16(data[i]) |
+            (UInt16(data[i+1]) << 8)
+        )
+
+        samples.append(s)
+        i += 2
+    }
+
+    let content = samples.map { String($0) }.joined(separator: "\n") + "\n"
+
+    if !FileManager.default.fileExists(atPath: fileURL.path) {
+        try! content.write(to: fileURL, atomically: true, encoding: .utf8)
     } else {
         let fileHandle = try! FileHandle(forWritingTo: fileURL)
         defer { fileHandle.closeFile() }

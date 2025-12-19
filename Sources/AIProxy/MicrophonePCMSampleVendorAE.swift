@@ -5,7 +5,7 @@
 //  Created by Lou Zell
 //
 
-import AVFoundation
+@preconcurrency import AVFoundation
 import Foundation
 
 /// This is an AVAudioEngine-based implementation that vends PCM16 microphone samples.
@@ -33,8 +33,7 @@ import Foundation
 /// Apple sample code: https://developer.apple.com/documentation/avfaudio/using-voice-processing
 /// Apple technical note: https://developer.apple.com/documentation/technotes/tn3136-avaudioconverter-performing-sample-rate-conversions
 /// My apple forum question: https://developer.apple.com/forums/thread/771530
-@RealtimeActor
-internal class MicrophonePCMSampleVendorAE: MicrophonePCMSampleVendor {
+@AIProxyActor class MicrophonePCMSampleVendorAE: MicrophonePCMSampleVendor {
     private let audioEngine: AVAudioEngine
     private let inputNode: AVAudioInputNode
     private let microphonePCMSampleVendorCommon = MicrophonePCMSampleVendorCommon()
@@ -78,16 +77,39 @@ internal class MicrophonePCMSampleVendorAE: MicrophonePCMSampleVendor {
         // There is a note on the installTap documentation that says AudioEngine may
         // adjust the bufferSize internally.
         let targetBufferSize = UInt32(desiredTapFormat.sampleRate / 20) // 50ms buffers
-        // print("Target buffer size is: \(targetBufferSize)")
+        logIf(.error)?.error("PCMSampleVendorAE target buffer size is: \(targetBufferSize)")
 
         return AsyncStream<AVAudioPCMBuffer> { [weak self] continuation in
             guard let this = self else { return }
             this.continuation = continuation
-            this.inputNode.installTap(onBus: 0, bufferSize: targetBufferSize, format: desiredTapFormat) { [weak this] sampleBuffer, _ in
-                if let accumulatedBuffer = this?.microphonePCMSampleVendorCommon.resampleAndAccumulate(sampleBuffer) {
-                    this?.continuation?.yield(accumulatedBuffer)
-                }
+
+            // This ensures the closure created is NOT actor-isolated.
+            // See PR https://github.com/lzell/AIProxySwift/pull/238 for more.
+            this.installTapNonIsolated(
+                inputNode: this.inputNode,
+                bufferSize: targetBufferSize,
+                format: desiredTapFormat
+            )
+        }
+    }
+
+    nonisolated private func installTapNonIsolated(
+        inputNode: AVAudioInputNode,
+        bufferSize: AVAudioFrameCount,
+        format: AVAudioFormat
+    ) {
+        inputNode.installTap(onBus: 0, bufferSize: bufferSize, format: format) { [weak self] sampleBuffer, _ in
+            guard let self else { return }
+            Task {
+                await self.processBuffer(sampleBuffer)
             }
+        }
+    }
+
+    private func processBuffer(_ buffer: AVAudioPCMBuffer) {
+        // This runs on the actor, so we can safely access isolated properties.
+        if let accumulatedBuffer = self.microphonePCMSampleVendorCommon.resampleAndAccumulate(buffer) {
+            self.continuation?.yield(accumulatedBuffer)
         }
     }
 

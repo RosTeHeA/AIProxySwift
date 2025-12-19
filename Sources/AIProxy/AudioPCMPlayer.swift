@@ -22,15 +22,13 @@ import AVFoundation
 ///
 /// See the "Sidenote" section here for the unfortunate dependency on order:
 /// https://stackoverflow.com/questions/57612695/avaudioplayer-volume-low-with-voiceprocessingio
-@RealtimeActor
-internal class AudioPCMPlayer {
+@AIProxyActor final class AudioPCMPlayer {
 
     let audioEngine: AVAudioEngine
     private let inputFormat: AVAudioFormat
     private let playableFormat: AVAudioFormat
     private let playerNode: AVAudioPlayerNode
 
-    @RealtimeActor
     init(audioEngine: AVAudioEngine) async throws {
         self.audioEngine = audioEngine
         guard let inputFormat = AVAudioFormat(
@@ -66,7 +64,7 @@ internal class AudioPCMPlayer {
     }
 
     deinit {
-        logIf(.debug)?.debug("AudioPCMPlayer is being freed")
+        logIf(.debug)?.debug("AIProxy: AudioPCMPlayer is being freed")
     }
 
     public func playPCM16Audio(from base64String: String) {
@@ -74,6 +72,15 @@ internal class AudioPCMPlayer {
             logIf(.error)?.error("Could not decode base64 string for audio playback")
             return
         }
+        playPCM16Audio(data: audioData)
+    }
+
+    public func playPCM16Audio(data audioData: Data) {
+        logIf(.debug)?.debug("AIProxy: playing \(audioData.count / 2) samples of PCM16 data")
+
+#if false
+        writeRawAudioToFile(audioData, location: "inputRaw.txt")
+#endif
 
         var bufferList = AudioBufferList(
             mNumberBuffers: 1,
@@ -93,6 +100,10 @@ internal class AudioPCMPlayer {
             logIf(.error)?.error("Could not create input buffer for audio playback")
             return
         }
+
+#if false
+        writePCM16IntValuesToFile(from: inPCMBuf, location: "input.txt")
+#endif
 
         guard let outPCMBuf = AVAudioPCMBuffer(
             pcmFormat: self.playableFormat,
@@ -114,12 +125,11 @@ internal class AudioPCMPlayer {
             return
         }
 
+#if false
+        writePCM16IntValuesToFile(from: outPCMBuf, location: "output.txt")
+#endif
+
         if self.audioEngine.isRunning {
-            // #if os(macOS)
-            // if AIProxyUtils.headphonesConnected {
-            //    addGain(to: outPCMBuf, gain: 2.0)
-            // }
-            // #endif
             self.playerNode.scheduleBuffer(outPCMBuf, at: nil, options: [], completionHandler: {})
             self.playerNode.play()
         }

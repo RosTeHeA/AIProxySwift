@@ -7,13 +7,13 @@
 
 import Foundation
 
-open class ElevenLabsDirectService: ElevenLabsService, DirectService {
+@AIProxyActor final class ElevenLabsDirectService: ElevenLabsService, DirectService, Sendable {
 
     private let unprotectedAPIKey: String
 
     /// This initializer is not public on purpose.
     /// Customers are expected to use the factory `AIProxy.elevenLabsDirectService` defined in AIProxy.swift
-    internal init(unprotectedAPIKey: String) {
+    nonisolated init(unprotectedAPIKey: String) {
         self.unprotectedAPIKey = unprotectedAPIKey
     }
 
@@ -51,6 +51,25 @@ open class ElevenLabsDirectService: ElevenLabsService, DirectService {
             request
         )
         return data
+    }
+
+    func streamingTTSRequest(
+        voiceID: String,
+        body: ElevenLabsTTSRequestBody,
+        secondsToWait: UInt
+    ) async throws -> AsyncStream<Data> {
+        let request = try AIProxyURLRequest.createDirect(
+            baseURL: "https://api.elevenlabs.io",
+            path: "/v1/text-to-speech/\(voiceID)/stream?output_format=pcm_24000",
+            body: try body.serialize(),
+            verb: .post,
+            secondsToWait: secondsToWait,
+            contentType: "application/json",
+            additionalHeaders: [
+                "xi-api-key": self.unprotectedAPIKey
+            ]
+        )
+        return try await BackgroundNetworker.makeRequestAndVendChunks(self.urlSession, request)
     }
 
     /// Converts speech to speech with a request to `/v1/speech-to-speech/<voice-id>`

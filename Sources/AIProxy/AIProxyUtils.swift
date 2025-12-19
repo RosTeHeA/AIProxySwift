@@ -26,11 +26,15 @@ import Network
 
 enum AIProxyUtils {
 
-    static func directURLSession() -> URLSession {
-        return URLSession(configuration: .ephemeral)
+    nonisolated static func directURLSession() -> URLSession {
+        return URLSession(
+            configuration: .ephemeral,
+            delegate: DirectURLSessionDataDelegate(),
+            delegateQueue: nil
+        )
     }
 
-    static func proxiedURLSession() -> URLSession {
+    nonisolated static func proxiedURLSession() -> URLSession {
         if AIProxy.resolveDNSOverTLS {
             let host = NWEndpoint.hostPort(host: "one.one.one.one", port: 853)
             let endpoints: [NWEndpoint] = [
@@ -48,14 +52,14 @@ enum AIProxyUtils {
     }
 
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
-    static func encodeImageAsJpeg(
+    nonisolated static func encodeImageAsJpeg(
         _ image: NSImage,
         _ compressionQuality: CGFloat
     ) -> Data? {
         return image.jpegData(compressionQuality: compressionQuality)
     }
 
-    static func encodeImageAsURL(
+    nonisolated static func encodeImageAsURL(
         _ image: NSImage,
         _ compressionQuality: CGFloat
     ) -> URL? {
@@ -66,14 +70,14 @@ enum AIProxyUtils {
     }
 
 #elseif canImport(UIKit)
-    static func encodeImageAsJpeg(
+    nonisolated static func encodeImageAsJpeg(
         _ image: UIImage,
         _ compressionQuality: CGFloat
     ) -> Data? {
         return image.jpegData(compressionQuality: compressionQuality)
     }
 
-    static func encodeImageAsURL(
+    nonisolated static func encodeImageAsURL(
         _ image: UIImage,
         _ compressionQuality: CGFloat
     ) -> URL? {
@@ -84,7 +88,7 @@ enum AIProxyUtils {
     }
 #endif
 
-    static func metadataHeader(withBodySize bodySize: Int?) -> String {
+    nonisolated static func metadataHeader(withBodySize bodySize: Int?) -> String {
         let ri = RuntimeInfo.current
         let fields: [String] = [
             "v4",
@@ -101,7 +105,7 @@ enum AIProxyUtils {
     }
 
     #if os(macOS)
-    static func getDefaultAudioInputDevice() -> AudioDeviceID? {
+    nonisolated static func getDefaultAudioInputDevice() -> AudioDeviceID? {
         var deviceID = AudioDeviceID()
         var propSize = UInt32(MemoryLayout<AudioDeviceID>.size)
         var address = AudioObjectPropertyAddress(
@@ -124,7 +128,7 @@ enum AIProxyUtils {
         return deviceID
     }
 
-    static func getAllAudioInputDevices() -> [AudioDeviceID] {
+    nonisolated static func getAllAudioInputDevices() -> [AudioDeviceID] {
         var propSize: UInt32 = 0
         var address = AudioObjectPropertyAddress(
             mSelector: kAudioHardwarePropertyDevices,
@@ -163,7 +167,7 @@ enum AIProxyUtils {
     }
     #endif
 
-    static var headphonesConnected: Bool {
+    nonisolated static var headphonesConnected: Bool {
         #if os(macOS)
         return audioToolboxHeadphonesConnected()
         #else
@@ -171,7 +175,7 @@ enum AIProxyUtils {
         #endif
     }
 
-    static func getAppTransactionID() async -> String? {
+    @AIProxyActor static func getAppTransactionID() async -> String? {
         #if compiler(<6.1.2)
         return nil
         #else
@@ -208,7 +212,7 @@ enum AIProxyUtils {
 
 #if canImport(AppKit) && !targetEnvironment(macCatalyst)
 extension NSImage {
-    func jpegData(compressionQuality: CGFloat = 1.0) -> Data? {
+    nonisolated func jpegData(compressionQuality: CGFloat = 1.0) -> Data? {
         guard let tiffData = self.tiffRepresentation else {
             return nil
         }
@@ -226,7 +230,7 @@ extension NSImage {
 
 
 #if !os(macOS)
-private func audioSessionHeadphonesConnected() -> Bool {
+nonisolated private func audioSessionHeadphonesConnected() -> Bool {
     let session = AVAudioSession.sharedInstance()
     let outputs = session.currentRoute.outputs
 
@@ -244,7 +248,7 @@ private func audioSessionHeadphonesConnected() -> Bool {
 
 
 #if os(macOS)
-private func audioToolboxHeadphonesConnected() -> Bool {
+nonisolated private func audioToolboxHeadphonesConnected() -> Bool {
     for deviceID in AIProxyUtils.getAllAudioInputDevices() {
         if isHeadphoneDevice(deviceID: deviceID) && isDeviceAlive(deviceID: deviceID) {
             return true
@@ -253,7 +257,7 @@ private func audioToolboxHeadphonesConnected() -> Bool {
     return false
 }
 
-private func isHeadphoneDevice(deviceID: AudioDeviceID) -> Bool {
+nonisolated private func isHeadphoneDevice(deviceID: AudioDeviceID) -> Bool {
     guard hasOutputStreams(deviceID: deviceID) else {
         return false
     }
@@ -276,7 +280,7 @@ private func isHeadphoneDevice(deviceID: AudioDeviceID) -> Bool {
     return false
 }
 
-private func getTransportType(deviceID: AudioDeviceID) -> UInt32 {
+nonisolated private func getTransportType(deviceID: AudioDeviceID) -> UInt32 {
     var transportType = UInt32(0)
     var propSize = UInt32(MemoryLayout<UInt32>.size)
     var address = AudioObjectPropertyAddress(
@@ -299,7 +303,7 @@ private func getTransportType(deviceID: AudioDeviceID) -> UInt32 {
     return transportType
 }
 
-private func isBuiltInHeadphonePort(deviceID: AudioDeviceID) -> Bool {
+nonisolated private func isBuiltInHeadphonePort(deviceID: AudioDeviceID) -> Bool {
     var deviceUID: CFString? = nil
     var propSize = UInt32(MemoryLayout<CFString>.size)
     var address = AudioObjectPropertyAddress(
@@ -328,7 +332,7 @@ private func isBuiltInHeadphonePort(deviceID: AudioDeviceID) -> Bool {
     return retval
 }
 
-private func hasOutputStreams(deviceID: AudioDeviceID) -> Bool {
+nonisolated private func hasOutputStreams(deviceID: AudioDeviceID) -> Bool {
     var address = AudioObjectPropertyAddress(
         mSelector: kAudioDevicePropertyStreams,
         mScope: kAudioObjectPropertyScopeOutput,
@@ -349,7 +353,7 @@ private func hasOutputStreams(deviceID: AudioDeviceID) -> Bool {
     return propSize > 0
 }
 
-private func isDeviceAlive(deviceID: AudioDeviceID) -> Bool {
+nonisolated private func isDeviceAlive(deviceID: AudioDeviceID) -> Bool {
     var isAlive: UInt32 = 0
     var propSize = UInt32(MemoryLayout<UInt32>.size)
     var address = AudioObjectPropertyAddress(

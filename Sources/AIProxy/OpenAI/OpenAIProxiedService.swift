@@ -4,16 +4,16 @@
 //  Created by Lou Zell on 12/14/24.
 //
 
-open class OpenAIProxiedService: OpenAIService, ProxiedService {
+@AIProxyActor final class OpenAIProxiedService: OpenAIService, ProxiedService, Sendable {
     /// This initializer is not public on purpose.
     /// Customers are expected to use the factory `AIProxy.openAIService` defined in AIProxy.swift
-    internal init(
+    nonisolated init(
         partialKey: String,
         serviceURL: String?,
         clientID: String?,
         requestFormat: OpenAIRequestFormat = .standard
     ) {
-        let requestBuilder = OpenAIProxiedRequestBuilder(
+        let requestBuilder = AIProxyProxiedRequestBuilder(
             partialKey: partialKey,
             serviceURL: serviceURL,
             clientID: clientID
@@ -21,7 +21,7 @@ open class OpenAIProxiedService: OpenAIService, ProxiedService {
         super.init(
             requestFormat: requestFormat,
             requestBuilder: requestBuilder,
-            serviceNetworker: OpenAIProxiedServiceNetworker()
+            serviceNetworker: ProxiedServiceNetworker()
         )
     }
 }
