@@ -93,6 +93,14 @@ extension OpenRouterChatCompletionChunk.Choice.Delta {
         public let index: Int?
         /// The function that the model instructs us to call
         public let function: Function?
+        /// Gemini thought signature - may be included with each tool call
+        public let thoughtSignature: String?
+        
+        private enum CodingKeys: String, CodingKey {
+            case index
+            case function
+            case thoughtSignature = "thought_signature"
+        }
     }
 }
 
@@ -103,5 +111,14 @@ extension OpenRouterChatCompletionChunk.Choice.Delta.ToolCall {
 
         /// The arguments to call the function with.
         public let arguments: String?
+        
+        /// Gemini thought signature - may be included with each function call
+        public let thoughtSignature: String?
+        
+        private enum CodingKeys: String, CodingKey {
+            case name
+            case arguments
+            case thoughtSignature = "thought_signature"
+        }
     }
 }
