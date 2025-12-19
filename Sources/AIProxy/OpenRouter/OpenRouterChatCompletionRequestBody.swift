@@ -286,13 +286,13 @@ extension OpenRouterChatCompletionRequestBody {
         /// - Parameters:
         ///   - content: Optional text content from the assistant
         ///   - toolCalls: The tool calls made by the assistant
-        ///   - thoughtSignature: Gemini thought signature to preserve reasoning context (deprecated, use reasoningDetails)
-        ///   - reasoningDetails: OpenRouter reasoning details object that must be preserved and passed back
+        ///   - thoughtSignature: Gemini thought signature to preserve reasoning context
+        ///   - reasoningDetails: OpenRouter reasoning details array - pass back EXACTLY as received from model
         case assistantWithToolCalls(
             content: String?,
             toolCalls: [ToolCallRequest],
             thoughtSignature: String?,
-            reasoningDetails: ReasoningDetailsObject? = nil
+            reasoningDetails: [ReasoningDetailRequest]? = nil
         )
 
         /// A system message
