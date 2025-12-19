@@ -286,11 +286,13 @@ extension OpenRouterChatCompletionRequestBody {
         /// - Parameters:
         ///   - content: Optional text content from the assistant
         ///   - toolCalls: The tool calls made by the assistant
-        ///   - thoughtSignature: Gemini thought signature to preserve reasoning context
+        ///   - thoughtSignature: Gemini thought signature to preserve reasoning context (deprecated, use reasoningDetails)
+        ///   - reasoningDetails: OpenRouter reasoning details that must be preserved and passed back
         case assistantWithToolCalls(
             content: String?,
             toolCalls: [ToolCallRequest],
-            thoughtSignature: String?
+            thoughtSignature: String?,
+            reasoningDetails: [ReasoningDetailRequest]? = nil
         )
 
         /// A system message
@@ -320,6 +322,7 @@ extension OpenRouterChatCompletionRequestBody {
             case toolCalls = "tool_calls"
             case thoughtSignature = "thought_signature"
             case toolCallId = "tool_call_id"
+            case reasoningDetails = "reasoning_details"
         }
 
         public func encode(to encoder: any Encoder) throws {
@@ -331,7 +334,7 @@ extension OpenRouterChatCompletionRequestBody {
                 if let name = name {
                     try container.encode(name, forKey: .name)
                 }
-            case .assistantWithToolCalls(let content, let toolCalls, let thoughtSignature):
+            case .assistantWithToolCalls(let content, let toolCalls, let thoughtSignature, let reasoningDetails):
                 try container.encode("assistant", forKey: .role)
                 if let content = content {
                     try container.encode(content, forKey: .content)
@@ -339,6 +342,9 @@ extension OpenRouterChatCompletionRequestBody {
                 try container.encode(toolCalls, forKey: .toolCalls)
                 if let signature = thoughtSignature {
                     try container.encode(signature, forKey: .thoughtSignature)
+                }
+                if let details = reasoningDetails {
+                    try container.encode(details, forKey: .reasoningDetails)
                 }
             case .system(let content, let name):
                 try container.encode(content, forKey: .content)
@@ -357,6 +363,22 @@ extension OpenRouterChatCompletionRequestBody {
                     try container.encode(name, forKey: .name)
                 }
             }
+        }
+    }
+}
+
+// MARK: - RequestBody.Message.ReasoningDetailRequest
+extension OpenRouterChatCompletionRequestBody.Message {
+    /// Reasoning detail to be passed back to preserve thought signatures
+    nonisolated public struct ReasoningDetailRequest: Encodable, Sendable {
+        public let type: String?
+        public let thinking: String?
+        public let signature: String?
+        
+        public init(type: String? = nil, thinking: String? = nil, signature: String? = nil) {
+            self.type = type
+            self.thinking = thinking
+            self.signature = signature
         }
     }
 }

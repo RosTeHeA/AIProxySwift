@@ -79,19 +79,24 @@ extension OpenRouterChatCompletionChunk.Choice {
         /// Gemini thought signature for function calling. This encrypted signature must be preserved
         /// and sent back in subsequent requests to maintain reasoning context during multi-turn tool use.
         public let thoughtSignature: String?
+        
+        /// OpenRouter reasoning details - contains signatures and thinking blocks that must be preserved
+        public let reasoningDetails: [ReasoningDetail]?
 
         public init(
             role: String,
             content: String? = nil,
             reasoning: String? = nil,
             toolCalls: [OpenRouterChatCompletionChunk.Choice.Delta.ToolCall]? = nil,
-            thoughtSignature: String? = nil
+            thoughtSignature: String? = nil,
+            reasoningDetails: [ReasoningDetail]? = nil
         ) {
             self.role = role
             self.content = content
             self.reasoning = reasoning
             self.toolCalls = toolCalls
             self.thoughtSignature = thoughtSignature
+            self.reasoningDetails = reasoningDetails
         }
 
         private enum CodingKeys: String, CodingKey {
@@ -100,6 +105,23 @@ extension OpenRouterChatCompletionChunk.Choice {
             case reasoning
             case toolCalls = "tool_calls"
             case thoughtSignature = "thought_signature"
+            case reasoningDetails = "reasoning_details"
+        }
+    }
+}
+
+// MARK: Chunk.Choice.Delta.ReasoningDetail
+extension OpenRouterChatCompletionChunk.Choice.Delta {
+    nonisolated public struct ReasoningDetail: Codable, Sendable {
+        public let type: String?
+        public let thinking: String?
+        /// The thought signature that must be preserved and sent back
+        public let signature: String?
+        
+        public init(type: String? = nil, thinking: String? = nil, signature: String? = nil) {
+            self.type = type
+            self.thinking = thinking
+            self.signature = signature
         }
     }
 }
