@@ -170,6 +170,10 @@ extension OpenRouterChatCompletionChunk.Choice.Delta {
 extension OpenRouterChatCompletionChunk.Choice.Delta {
     nonisolated public struct ToolCall: Codable, Sendable {
         public let index: Int?
+        /// The unique ID for this tool call (provided by OpenRouter)
+        public let id: String?
+        /// The type of tool call (usually "function")
+        public let type: String?
         /// The function that the model instructs us to call
         public let function: Function?
         /// Gemini thought signature - may be included with each tool call
@@ -179,6 +183,8 @@ extension OpenRouterChatCompletionChunk.Choice.Delta {
         
         private enum CodingKeys: String, CodingKey {
             case index
+            case id
+            case type
             case function
             case thoughtSignature = "thought_signature"
             case extraContent = "extra_content"
