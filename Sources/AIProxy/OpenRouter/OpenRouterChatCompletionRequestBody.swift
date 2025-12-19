@@ -392,12 +392,15 @@ extension OpenRouterChatCompletionRequestBody.Message {
         public let function: FunctionCall
         /// Gemini thought signature - must be included on each tool call for Gemini models
         public let thoughtSignature: String?
+        /// Extra content for provider-specific data like google.thought_signature
+        public let extraContent: ExtraContentRequest?
         
         private enum CodingKeys: String, CodingKey {
             case id
             case type
             case function
             case thoughtSignature = "thought_signature"
+            case extraContent = "extra_content"
         }
         
         public init(id: String, function: FunctionCall, thoughtSignature: String? = nil) {
@@ -405,6 +408,12 @@ extension OpenRouterChatCompletionRequestBody.Message {
             self.type = "function"
             self.function = function
             self.thoughtSignature = thoughtSignature
+            // Also include in extra_content.google for OpenRouter compatibility
+            if let sig = thoughtSignature {
+                self.extraContent = ExtraContentRequest(google: .init(thoughtSignature: sig))
+            } else {
+                self.extraContent = nil
+            }
         }
         
         public struct FunctionCall: Encodable, Sendable {
@@ -414,6 +423,27 @@ extension OpenRouterChatCompletionRequestBody.Message {
             public init(name: String, arguments: String) {
                 self.name = name
                 self.arguments = arguments
+            }
+        }
+    }
+    
+    /// Extra content request for provider-specific data
+    nonisolated public struct ExtraContentRequest: Encodable, Sendable {
+        public let google: GoogleContentRequest?
+        
+        public init(google: GoogleContentRequest?) {
+            self.google = google
+        }
+        
+        nonisolated public struct GoogleContentRequest: Encodable, Sendable {
+            public let thoughtSignature: String?
+            
+            private enum CodingKeys: String, CodingKey {
+                case thoughtSignature = "thought_signature"
+            }
+            
+            public init(thoughtSignature: String?) {
+                self.thoughtSignature = thoughtSignature
             }
         }
     }

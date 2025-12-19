@@ -82,6 +82,9 @@ extension OpenRouterChatCompletionChunk.Choice {
         
         /// OpenRouter reasoning details - contains signatures and thinking blocks that must be preserved
         public let reasoningDetails: [ReasoningDetail]?
+        
+        /// Extra content that may contain provider-specific data
+        public let extraContent: ExtraContent?
 
         public init(
             role: String,
@@ -89,7 +92,8 @@ extension OpenRouterChatCompletionChunk.Choice {
             reasoning: String? = nil,
             toolCalls: [OpenRouterChatCompletionChunk.Choice.Delta.ToolCall]? = nil,
             thoughtSignature: String? = nil,
-            reasoningDetails: [ReasoningDetail]? = nil
+            reasoningDetails: [ReasoningDetail]? = nil,
+            extraContent: ExtraContent? = nil
         ) {
             self.role = role
             self.content = content
@@ -97,6 +101,7 @@ extension OpenRouterChatCompletionChunk.Choice {
             self.toolCalls = toolCalls
             self.thoughtSignature = thoughtSignature
             self.reasoningDetails = reasoningDetails
+            self.extraContent = extraContent
         }
 
         private enum CodingKeys: String, CodingKey {
@@ -106,6 +111,25 @@ extension OpenRouterChatCompletionChunk.Choice {
             case toolCalls = "tool_calls"
             case thoughtSignature = "thought_signature"
             case reasoningDetails = "reasoning_details"
+            case extraContent = "extra_content"
+        }
+        
+        /// Helper to get thought signature from any location
+        public var effectiveThoughtSignature: String? {
+            thoughtSignature ?? extraContent?.google?.thoughtSignature
+        }
+    }
+    
+    /// Extra content wrapper for provider-specific data at delta level
+    nonisolated public struct ExtraContent: Codable, Sendable {
+        public let google: GoogleContent?
+        
+        nonisolated public struct GoogleContent: Codable, Sendable {
+            public let thoughtSignature: String?
+            
+            private enum CodingKeys: String, CodingKey {
+                case thoughtSignature = "thought_signature"
+            }
         }
     }
 }
@@ -133,11 +157,32 @@ extension OpenRouterChatCompletionChunk.Choice.Delta {
         public let function: Function?
         /// Gemini thought signature - may be included with each tool call
         public let thoughtSignature: String?
+        /// Extra content that may contain provider-specific data like google.thought_signature
+        public let extraContent: ExtraContent?
         
         private enum CodingKeys: String, CodingKey {
             case index
             case function
             case thoughtSignature = "thought_signature"
+            case extraContent = "extra_content"
+        }
+        
+        /// Helper to get thought signature from any location
+        public var effectiveThoughtSignature: String? {
+            thoughtSignature ?? extraContent?.google?.thoughtSignature
+        }
+    }
+    
+    /// Extra content wrapper for provider-specific data
+    nonisolated public struct ExtraContent: Codable, Sendable {
+        public let google: GoogleContent?
+        
+        nonisolated public struct GoogleContent: Codable, Sendable {
+            public let thoughtSignature: String?
+            
+            private enum CodingKeys: String, CodingKey {
+                case thoughtSignature = "thought_signature"
+            }
         }
     }
 }
