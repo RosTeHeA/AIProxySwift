@@ -368,11 +368,21 @@ extension OpenRouterChatCompletionRequestBody.Message {
         public let id: String
         public let type: String
         public let function: FunctionCall
+        /// Gemini thought signature - must be included on each tool call for Gemini models
+        public let thoughtSignature: String?
         
-        public init(id: String, function: FunctionCall) {
+        private enum CodingKeys: String, CodingKey {
+            case id
+            case type
+            case function
+            case thoughtSignature = "thought_signature"
+        }
+        
+        public init(id: String, function: FunctionCall, thoughtSignature: String? = nil) {
             self.id = id
             self.type = "function"
             self.function = function
+            self.thoughtSignature = thoughtSignature
         }
         
         public struct FunctionCall: Encodable, Sendable {
