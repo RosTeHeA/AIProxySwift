@@ -374,11 +374,23 @@ extension OpenRouterChatCompletionRequestBody.Message {
         public let type: String?
         public let thinking: String?
         public let signature: String?
+        /// Encrypted reasoning data (for type="reasoning.encrypted") - the thought signature for Gemini
+        public let data: String?
+        /// Unique identifier
+        public let id: String?
+        /// Format of the reasoning detail
+        public let format: String?
+        /// Sequential index
+        public let index: Int?
         
-        public init(type: String? = nil, thinking: String? = nil, signature: String? = nil) {
+        public init(type: String? = nil, thinking: String? = nil, signature: String? = nil, data: String? = nil, id: String? = nil, format: String? = nil, index: Int? = nil) {
             self.type = type
             self.thinking = thinking
             self.signature = signature
+            self.data = data
+            self.id = id
+            self.format = format
+            self.index = index
         }
     }
 }

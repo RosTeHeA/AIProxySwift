@@ -139,13 +139,30 @@ extension OpenRouterChatCompletionChunk.Choice.Delta {
     nonisolated public struct ReasoningDetail: Codable, Sendable {
         public let type: String?
         public let thinking: String?
-        /// The thought signature that must be preserved and sent back
+        /// The thought signature that must be preserved and sent back (legacy field name)
         public let signature: String?
+        /// Encrypted reasoning data (for type="reasoning.encrypted") - THIS is the thought signature for Gemini
+        public let data: String?
+        /// Unique identifier for the reasoning detail
+        public let id: String?
+        /// Format of the reasoning detail (e.g., "anthropic-claude-v1", "openai-responses-v1")
+        public let format: String?
+        /// Sequential index
+        public let index: Int?
         
-        public init(type: String? = nil, thinking: String? = nil, signature: String? = nil) {
+        public init(type: String? = nil, thinking: String? = nil, signature: String? = nil, data: String? = nil, id: String? = nil, format: String? = nil, index: Int? = nil) {
             self.type = type
             self.thinking = thinking
             self.signature = signature
+            self.data = data
+            self.id = id
+            self.format = format
+            self.index = index
+        }
+        
+        /// Get the effective signature - checks both signature field and data field for encrypted types
+        public var effectiveSignature: String? {
+            signature ?? (type == "reasoning.encrypted" ? data : nil)
         }
     }
 }
