@@ -287,12 +287,12 @@ extension OpenRouterChatCompletionRequestBody {
         ///   - content: Optional text content from the assistant
         ///   - toolCalls: The tool calls made by the assistant
         ///   - thoughtSignature: Gemini thought signature to preserve reasoning context (deprecated, use reasoningDetails)
-        ///   - reasoningDetails: OpenRouter reasoning details that must be preserved and passed back
+        ///   - reasoningDetails: OpenRouter reasoning details object that must be preserved and passed back
         case assistantWithToolCalls(
             content: String?,
             toolCalls: [ToolCallRequest],
             thoughtSignature: String?,
-            reasoningDetails: [ReasoningDetailRequest]? = nil
+            reasoningDetails: ReasoningDetailsObject? = nil
         )
 
         /// A system message
@@ -367,9 +367,26 @@ extension OpenRouterChatCompletionRequestBody {
     }
 }
 
-// MARK: - RequestBody.Message.ReasoningDetailRequest
+// MARK: - RequestBody.Message.ReasoningDetailsObject
 extension OpenRouterChatCompletionRequestBody.Message {
-    /// Reasoning detail to be passed back to preserve thought signatures
+    /// Reasoning details object to be passed back to preserve thought signatures (OpenRouter format)
+    nonisolated public struct ReasoningDetailsObject: Encodable, Sendable {
+        /// The thought signature that must be preserved
+        public let thoughtSignature: String?
+        
+        private enum CodingKeys: String, CodingKey {
+            case thoughtSignature = "thought_signature"
+        }
+        
+        public init(thoughtSignature: String?) {
+            self.thoughtSignature = thoughtSignature
+        }
+    }
+}
+
+// MARK: - RequestBody.Message.ReasoningDetailRequest (legacy, for array format)
+extension OpenRouterChatCompletionRequestBody.Message {
+    /// Reasoning detail to be passed back to preserve thought signatures (array format)
     nonisolated public struct ReasoningDetailRequest: Encodable, Sendable {
         public let type: String?
         public let thinking: String?
