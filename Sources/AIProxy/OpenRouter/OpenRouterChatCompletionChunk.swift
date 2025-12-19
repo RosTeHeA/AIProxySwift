@@ -59,17 +59,23 @@ extension OpenRouterChatCompletionChunk.Choice {
         public let reasoning: String?
 
         public let toolCalls: [ToolCall]?
+        
+        /// Gemini thought signature for function calling. This encrypted signature must be preserved
+        /// and sent back in subsequent requests to maintain reasoning context during multi-turn tool use.
+        public let thoughtSignature: String?
 
         public init(
             role: String,
             content: String? = nil,
             reasoning: String? = nil,
-            toolCalls: [OpenRouterChatCompletionChunk.Choice.Delta.ToolCall]? = nil
+            toolCalls: [OpenRouterChatCompletionChunk.Choice.Delta.ToolCall]? = nil,
+            thoughtSignature: String? = nil
         ) {
             self.role = role
             self.content = content
             self.reasoning = reasoning
             self.toolCalls = toolCalls
+            self.thoughtSignature = thoughtSignature
         }
 
         private enum CodingKeys: String, CodingKey {
@@ -77,6 +83,7 @@ extension OpenRouterChatCompletionChunk.Choice {
             case content
             case reasoning
             case toolCalls = "tool_calls"
+            case thoughtSignature = "thought_signature"
         }
     }
 }

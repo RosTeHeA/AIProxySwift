@@ -281,6 +281,17 @@ extension OpenRouterChatCompletionRequestBody {
         ///   - name: An optional name for the participant. Provides the model information to differentiate
         ///           between participants of the same role.
         case assistant(content: AssistantContent, name: String? = nil)
+        
+        /// Assistant message with tool calls (for multi-turn function calling with Gemini models)
+        /// - Parameters:
+        ///   - content: Optional text content from the assistant
+        ///   - toolCalls: The tool calls made by the assistant
+        ///   - thoughtSignature: Gemini thought signature to preserve reasoning context
+        case assistantWithToolCalls(
+            content: String?,
+            toolCalls: [ToolCallRequest],
+            thoughtSignature: String?
+        )
 
         /// A system message
         /// - Parameters:
@@ -288,6 +299,12 @@ extension OpenRouterChatCompletionRequestBody {
         ///   - name: An optional name for the participant. Provides the model information to differentiate
         ///           between participants of the same role.
         case system(content: SystemContent, name: String? = nil)
+        
+        /// A tool result message (response to a tool call)
+        /// - Parameters:
+        ///   - toolCallId: The ID of the tool call this result is for
+        ///   - content: The result content from the tool execution
+        case tool(toolCallId: String, content: String)
 
         /// A user message
         /// - Parameters:
@@ -300,6 +317,9 @@ extension OpenRouterChatCompletionRequestBody {
             case content
             case role
             case name
+            case toolCalls = "tool_calls"
+            case thoughtSignature = "thought_signature"
+            case toolCallId = "tool_call_id"
         }
 
         public func encode(to encoder: any Encoder) throws {
@@ -311,18 +331,57 @@ extension OpenRouterChatCompletionRequestBody {
                 if let name = name {
                     try container.encode(name, forKey: .name)
                 }
+            case .assistantWithToolCalls(let content, let toolCalls, let thoughtSignature):
+                try container.encode("assistant", forKey: .role)
+                if let content = content {
+                    try container.encode(content, forKey: .content)
+                }
+                try container.encode(toolCalls, forKey: .toolCalls)
+                if let signature = thoughtSignature {
+                    try container.encode(signature, forKey: .thoughtSignature)
+                }
             case .system(let content, let name):
                 try container.encode(content, forKey: .content)
                 try container.encode("system", forKey: .role)
                 if let name = name {
                     try container.encode(name, forKey: .name)
                 }
+            case .tool(let toolCallId, let content):
+                try container.encode("tool", forKey: .role)
+                try container.encode(toolCallId, forKey: .toolCallId)
+                try container.encode(content, forKey: .content)
             case .user(let content, let name):
                 try container.encode(content, forKey: .content)
                 try container.encode("user", forKey: .role)
                 if let name = name {
                     try container.encode(name, forKey: .name)
                 }
+            }
+        }
+    }
+}
+
+// MARK: - RequestBody.Message.ToolCallRequest
+extension OpenRouterChatCompletionRequestBody.Message {
+    /// Tool call structure for requests (used in assistantWithToolCalls)
+    nonisolated public struct ToolCallRequest: Encodable, Sendable {
+        public let id: String
+        public let type: String
+        public let function: FunctionCall
+        
+        public init(id: String, function: FunctionCall) {
+            self.id = id
+            self.type = "function"
+            self.function = function
+        }
+        
+        public struct FunctionCall: Encodable, Sendable {
+            public let name: String
+            public let arguments: String
+            
+            public init(name: String, arguments: String) {
+                self.name = name
+                self.arguments = arguments
             }
         }
     }
